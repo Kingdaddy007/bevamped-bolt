@@ -1,0 +1,6 @@
+saved/
+tmp/
+.env
+.env.*
+*.dpapi
+*.dpapi.pending

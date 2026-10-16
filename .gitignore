@@ -1,0 +1,30 @@
+# Source-only publication: private research and workspace files stay local.
+/*
+!/.gitignore
+!/README.md
+!/lead-workspace/
+/lead-workspace/*
+!/lead-workspace/.gitignore
+!/lead-workspace/package.json
+!/lead-workspace/server.mjs
+!/lead-workspace/domain.mjs
+!/lead-workspace/wispr.mjs
+!/lead-workspace/call-analysis.mjs
+!/lead-workspace/start-desk.mjs
+!/lead-workspace/START-BEVAMPED.cmd
+!/lead-workspace/public/
+!/lead-workspace/tests/
+
+# Never publish credentials, local decisions, transcripts, or generated artifacts.
+**/.env
+**/.env.*
+**/*.dpapi
+**/*.dpapi.pending
+**/node_modules/
+**/saved/
+**/tmp/
+**/data/
+**/reconciliation/
+**/evidence/
+**/audit/
+**/*.log

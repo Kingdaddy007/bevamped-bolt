@@ -1,0 +1,44 @@
+/* A standalone brand entrance, followed by the reading screen. */
+.opening-gate[data-stage=brand]{overflow:hidden;outline:none}
+.brand-intro{position:fixed;inset:0;background:var(--workspace);color:var(--workspace-text);overflow:hidden;animation:intro-curtain .7s 7.1s ease-in both}
+.brand-intro>.intro-symbol{position:absolute;left:50%;top:50%;width:170px;height:170px;transform:translate(-50%,-50%);animation:intro-symbol-exit .8s 3.8s ease-in both}
+.intro-symbol .piece{animation-duration:3.4s;animation-timing-function:var(--ease);animation-fill-mode:both}
+.intro-symbol .p1{animation-name:bolt-nw}.intro-symbol .p2{animation-name:bolt-se}.intro-symbol .p3{animation-name:bolt-ne}.intro-symbol .p4{animation-name:bolt-sw}
+.intro-symbol .meeting-centre{transform-origin:72px 72px;animation:bolt-centre 3.4s var(--ease) both}
+.intro-lettering{position:absolute;left:50%;top:50%;width:245px;height:92px;fill:none;stroke:currentColor;transform:translate(-50%,-50%);animation:intro-letter-arrival 1.5s 4.4s var(--ease) both}
+.intro-skip{position:fixed;left:50%;bottom:30px;transform:translate(-50%,150px);opacity:0;border:1px solid var(--reading-border);background:var(--workspace);color:var(--workspace-text);padding:12px 18px;font-size:14px;border-radius:5px}
+.intro-skip:focus-visible{opacity:1;transform:translate(-50%,0)}
+.opening-gate[data-stage=prayer] .opening-shell{animation:prayer-arrival .75s var(--ease) both}
+.opening-title-row h1{font-family:var(--serif);font-size:44px;font-weight:400;letter-spacing:-.04em}
+.prayer-entry{display:flex;align-items:center;flex-direction:column;justify-content:center;margin:30px auto 15px;gap:12px;animation:entry-arrival .8s var(--ease) both}
+.prayer-entry>.enter-bolt{min-width:215px;justify-content:space-between}
+.prayer-entry>p{font-size:12px;color:var(--workspace-muted);margin:0}
+.prayer-reading-controls{display:flex;align-items:center;justify-content:center;gap:27px;margin:18px 0 22px}
+.prayer-reading-controls>button{background:none;border:0;color:var(--workspace-muted);padding:9px 0;min-height:40px;font-size:13px;cursor:pointer}
+.prayer-reading-controls>button:hover{color:var(--workspace-text);text-decoration:underline;text-underline-offset:4px}
+.prayer-editor{border-top:1px solid var(--workspace-line);padding-top:12px;margin-top:20px}
+.prayer-editor>summary{margin:auto;text-align:center}
+/* The rail is an independent, keyboard-scrollable navigation region. */
+@media(min-width:701px){.sidebar{height:100vh;height:100dvh;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:thin;scrollbar-color:#7d8d73 transparent;scrollbar-gutter:stable}.sidebar>*{flex-shrink:0}.sidebar:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}}
+/* The numerals carry the emphasis; labels remain quiet and sentence case. */
+.metric-label{font-size:13px;letter-spacing:0;text-transform:none;font-weight:400}
+.metric-label>svg{display:none}
+.queue-actions{display:flex;gap:8px 23px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.queue-actions .button.text{font-size:12px;color:var(--workspace-muted);padding:6px 0;min-height:34px;white-space:nowrap}
+.queue-actions .button.text:hover{color:var(--workspace-text);text-decoration:underline;text-underline-offset:4px}
+.main{position:relative;isolation:isolate}
+.desk-atmosphere{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;color:var(--workspace-text);opacity:.035}
+.desk-atmosphere>.meeting-mark{position:absolute;right:-120px;top:100px;width:630px;height:630px;animation:desk-drift 32s ease-in-out infinite alternate}
+.desk-atmosphere .meeting-mark path{stroke-width:1.1}
+.desk-atmosphere .meeting-centre{opacity:.35}
+html[data-theme=light] .desk-atmosphere{opacity:.045}
+html[data-motion=paused] .desk-atmosphere>.meeting-mark,body:has(dialog[open]) .desk-atmosphere>.meeting-mark{animation-play-state:paused}
+@keyframes intro-symbol-exit{from{opacity:1;transform:translate(-50%,-50%) scale(1)}to{opacity:0;transform:translate(-50%,-50%) scale(.92)}}
+@keyframes intro-letter-arrival{from{opacity:0;transform:translate(-50%,-45%)}to{opacity:1;transform:translate(-50%,-50%)}}
+@keyframes intro-curtain{from{opacity:1}to{opacity:0}}
+@keyframes prayer-arrival{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
+@keyframes entry-arrival{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes desk-drift{from{transform:translate3d(0,0,0) rotate(-5deg)}to{transform:translate3d(-30px,30px,0) rotate(6deg)}}
+@media(max-width:850px){.metric-label{font-size:13px}.queue-actions{max-width:230px;gap:1px 15px}.queue-actions .button.text{font-size:11px}}
+@media(max-width:700px){.intro-symbol{width:130px!important;height:130px!important}.intro-lettering{width:210px;height:79px}.opening-title-row h1{font-size:38px}.queue-actions{max-width:155px;gap:3px;flex-direction:column;align-items:flex-end}.queue-actions .replay-welcome{max-width:none}.queue-actions .button.text{font-size:11px;white-space:normal;text-align:right;min-height:32px;line-height:1.5}.metric-label{font-size:12px}.prayer-entry{margin-top:27px}.prayer-reading-controls{gap:23px}.prayer-reading-controls>button{font-size:12px}.desk-atmosphere>.meeting-mark{width:440px;height:440px;right:-170px;top:160px}}
+@media(prefers-reduced-motion:reduce){.brand-intro,.intro-symbol,.intro-lettering,.intro-symbol .piece,.intro-symbol .meeting-centre,.opening-gate .opening-shell,.prayer-entry{animation:none!important}.desk-atmosphere{display:none}.intro-lettering{opacity:1}}

@@ -10,20 +10,20 @@ const LIMIT=2*1024*1024;
 const fail=message=>new Error(message);
 
 // Fixed script, secrets only on stdin; Windows protects data for the current user.
-function protect(input,decrypt=false){
-  if(process.platform!=='win32')throw fail('Persistent Wispr sign-in requires Windows credential protection.');
+function protect(input,decrypt=false,label='Wispr'){
+  if(process.platform!=='win32')throw fail(`Persistent ${label} sign-in requires Windows credential protection.`);
   const code=`$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Security; $s=[Console]::In.ReadToEnd(); $b=[Convert]::FromBase64String($s); $r=[Security.Cryptography.ProtectedData]::${decrypt?'Unprotect':'Protect'}($b,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser); [Console]::Out.Write([Convert]::ToBase64String($r));`;
   return new Promise((resolve,reject)=>{
     const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(code,'utf16le').toString('base64')],{windowsHide:true,stdio:['pipe','pipe','pipe']});
     let output='';const timer=setTimeout(()=>{p.kill();reject(fail('Windows credential protection timed out.'));},15000);
     p.stdout.on('data',b=>{output+=b;if(output.length>LIMIT)p.kill();});p.stderr.resume();p.on('error',()=>{clearTimeout(timer);reject(fail('Windows credential protection is unavailable.'));});
-    p.on('close',n=>{clearTimeout(timer);n===0?resolve(Buffer.from(output.trim(),'base64')):reject(fail('Could not unlock the Wispr connection. Connect again on this Windows account.'));});p.stdin.on('error',()=>{});p.stdin.end(Buffer.from(input).toString('base64'));
+    p.on('close',n=>{clearTimeout(timer);n===0?resolve(Buffer.from(output.trim(),'base64')):reject(fail(`Could not unlock the ${label} connection. Connect again on this Windows account.`));});p.stdin.on('error',()=>{});p.stdin.end(Buffer.from(input).toString('base64'));
   });
 }
-export function windowsVault(filename){
+export function windowsVault(filename,label='Wispr'){
   return {
-    async load(){try{return JSON.parse((await protect(Buffer.from((await readFile(filename,'utf8')).trim(),'base64'),true)).toString('utf8'));}catch(e){if(e.code==='ENOENT')return null;throw e;}},
-    async save(value){const encrypted=await protect(Buffer.from(JSON.stringify(value)));const temp=filename+'.pending';await writeFile(temp,encrypted.toString('base64'),{mode:0o600});await rename(temp,filename);},
+    async load(){try{return JSON.parse((await protect(Buffer.from((await readFile(filename,'utf8')).trim(),'base64'),true,label)).toString('utf8'));}catch(e){if(e.code==='ENOENT')return null;throw e;}},
+    async save(value){const encrypted=await protect(Buffer.from(JSON.stringify(value)),false,label);const temp=filename+'.pending';await writeFile(temp,encrypted.toString('base64'),{mode:0o600});await rename(temp,filename);},
     async clear(){try{await unlink(filename);}catch(e){if(e.code!=='ENOENT')throw e;}}
   };
 }

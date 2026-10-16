@@ -11,6 +11,9 @@
 !/lead-workspace/wispr.mjs
 !/lead-workspace/call-analysis.mjs
 !/lead-workspace/start-desk.mjs
+!/lead-workspace/calendar.mjs
+!/lead-workspace/workflow.mjs
+!/lead-workspace/insights.mjs
 !/lead-workspace/START-BEVAMPED.cmd
 !/lead-workspace/public/
 !/lead-workspace/tests/

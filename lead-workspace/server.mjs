@@ -6,12 +6,14 @@ import { randomBytes, createHash } from 'node:crypto';
 import { initialState, applyCommand, validateState, leadState, localDate, dayMetrics } from './domain.mjs';
 import {createWispr,meetingMaterial,wisprLink} from './wispr.mjs';
 import {analysisStatus,analyzeCall} from './call-analysis.mjs';
+import {createCalendar} from './calendar.mjs';
+import {extractCommitments,reviewWeek,weeklySource} from './insights.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const MAX_BODY = 64 * 1024 * 1024;
 const MIME = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.ico':'image/x-icon'};
 const csvCell = x => {const value=String(x??'');const safe=typeof x==='string'&&/^[=+@\-\t\r]/.test(value)?"'"+value:value;return `"${safe.replaceAll('"','""')}"`;};
-export async function createDesk({ port = Number(process.env.PORT || 4318), dataFile = path.join(ROOT,'data','central-leads.json'), stateDir = process.env.BEVAMPED_STATE_DIR || path.join(ROOT,'saved'), now = () => new Date().toISOString(), wisprClient, analyze = analyzeCall, analysisInfo = analysisStatus } = {}) {
+export async function createDesk({ port = Number(process.env.PORT || 4318), dataFile = path.join(ROOT,'data','central-leads.json'), stateDir = process.env.BEVAMPED_STATE_DIR || path.join(ROOT,'saved'), now = () => new Date().toISOString(), wisprClient, calendarClient, analyze = analyzeCall, commitments = extractCommitments, weeklyReview = reviewWeek, analysisInfo = analysisStatus } = {}) {
   const dataset = JSON.parse(await readFile(dataFile,'utf8').then(s=>s.replace(/^\uFEFF/,'')));
   if(dataset.schemaVersion!==1 || !Array.isArray(dataset.leads) || !dataset.leads.length)throw new Error('The reconciled lead bank is missing or incompatible.');
   if(new Set(dataset.leads.map(l=>l.id)).size!==dataset.leads.length || dataset.leads.some(l=>!/^[-a-zA-Z0-9_]+$/.test(l.id)))throw new Error('The bank contains invalid or duplicate lead IDs.');
@@ -38,6 +40,7 @@ export async function createDesk({ port = Number(process.env.PORT || 4318), data
   const body=async req=>{let raw='';let size=0;for await(const chunk of req){size+=chunk.length;if(size>MAX_BODY)throw new Error('This file is too large to import.');raw+=chunk;}try{return JSON.parse(raw);}catch{throw new Error('The request is not valid JSON.');}};
   const payload=()=>({dataset,state,today:localDate(now()),metrics:dayMetrics(state,localDate(now())),storage:{lastSavedAt,location:stateDir,backupMode:'before every saved change'},datasetHash});
   const wispr=wisprClient||createWispr({stateDir});
+  let calendar;try{calendar=calendarClient||await createCalendar({stateDir});}catch{const message='The calendar scheduling record could not be read. Calls are available; preserve saved/calendar-jobs.json and restore it before scheduling.';const unavailable=async()=>{throw new Error(message);};calendar={status:async()=>({configured:false,connected:false,unavailable:true,error:message,jobs:[]}),schedule:unavailable,runTest:unavailable,configure:unavailable,connect:unavailable,disconnect:unavailable,callback:unavailable};}
   const sessionJobs=new Set();let previewBusy=false,workspaceGeneration=0;
   const commit=(command,generation=workspaceGeneration)=>{
     const operation=chain.then(async()=>{if(generation!==workspaceGeneration)throw new Error('The workspace was restored during this request. Retry from the restored state.');const next=applyCommand(state,dataset,command,now());await persist(next);return payload();});
@@ -82,11 +85,42 @@ export async function createDesk({ port = Number(process.env.PORT || 4318), data
       res.setHeader('Referrer-Policy','no-referrer');
       res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
       if(url.pathname.startsWith('/api/')){
+        if(req.method==='GET'&&url.pathname==='/api/calendar/callback'){
+          let ok=false;try{await calendar.callback(url.searchParams);ok=true;}catch{/* Do not expose OAuth response data or credentials in the page. */}
+          res.writeHead(ok?200:400,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});return res.end(`<!doctype html><html lang="en"><meta charset="utf-8"><title>BOLT · Google Calendar</title><body><h1>${ok?'Google Calendar connected':'Calendar connection not completed'}</h1><p>${ok?'Return to BOLT, refresh the connection and verify the displayed calendar account.':'Return to BOLT and connect again. Check the Google app setup, Calendar API access and both requested permissions.'}</p><a href="/">Return to BOLT</a></body></html>`);
+        }
         if(req.method==='GET'&&url.pathname==='/api/wispr/callback'){
           let message;let ok=false;try{await wispr.callback(url.searchParams);ok=true;message='Wispr is connected. Return to the desk and refresh the connection.';}catch{message='Wispr sign-in was not completed. Return to the desk and choose Connect Wispr again.';}
           res.writeHead(ok?200:400,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});return res.end(`<!doctype html><html lang="en"><meta charset="utf-8"><title>Bevamped · Wispr connection</title><body><h1>${ok?'Wispr connected':'Connection not completed'}</h1><p>${message}</p><a href="/">Return to Bevamped</a></body></html>`);
         }
         if(req.headers['sec-fetch-site']==='cross-site'||(req.headers.origin&&!validHosts.some(h=>req.headers.origin===`http://${h}`)))return json(res,403,{error:'Requests must come from this local workspace.'});
+        if(req.method==='GET'&&url.pathname==='/api/insights/week'){const startDate=url.searchParams.get('startDate'),endDate=url.searchParams.get('endDate'),source=weeklySource(state,startDate,endDate),saved=(state.weeklyReviews||[]).find(w=>w.startDate===startDate&&w.endDate===endDate);return json(res,200,{...source,sample:undefined,review:saved?.review||null,generatedAt:saved?.generatedAt||null,stale:!!saved&&saved.review.sourceHash!==source.sourceHash});}
+        if(req.method==='POST'&&url.pathname.startsWith('/api/insights/')){
+          if(!req.headers['content-type']?.startsWith('application/json'))return json(res,415,{error:'Expected JSON.'});const input=await body(req),generation=workspaceGeneration;
+          if(url.pathname==='/api/insights/commitments'){const call=state.calls.find(c=>c.id===input.callId);if(!call)throw new Error('Choose a saved call.');const original=JSON.stringify(call);const result=await commitments(structuredClone(call));if(JSON.stringify(state.calls.find(c=>c.id===call.id))!==original)throw new Error('Call evidence changed during analysis. Extract again.');await commit({type:'propose_commitments',payload:{leadId:call.leadId,callId:call.id,...result}},generation);return json(res,200,payload());}
+          if(url.pathname==='/api/insights/week'){const source=weeklySource(state,input.startDate,input.endDate);const review=await weeklyReview(structuredClone(state),input.startDate,input.endDate);if(weeklySource(state,input.startDate,input.endDate).sourceHash!==source.sourceHash)throw new Error('Calls changed while the review was being drafted. Generate it again.');await commit({type:'save_weekly_review',payload:{startDate:input.startDate,endDate:input.endDate,review}},generation);return json(res,200,payload());}
+          return json(res,404,{error:'Not found.'});
+        }
+        if(req.method==='GET'&&url.pathname==='/api/calendar/status')return json(res,200,await calendar.status());
+        if(req.method==='POST'&&url.pathname.startsWith('/api/calendar/')){
+          if(!req.headers['content-type']?.startsWith('application/json'))return json(res,415,{error:'Expected JSON.'});
+          const input=await body(req);
+          if(url.pathname==='/api/calendar/configure')return json(res,200,await calendar.configure(input.credentials));
+          if(url.pathname==='/api/calendar/connect')return json(res,200,await calendar.connect(`http://127.0.0.1:${server.address().port}/api/calendar/callback`));
+          if(url.pathname==='/api/calendar/disconnect')return json(res,200,await calendar.disconnect());
+          if(url.pathname==='/api/calendar/test')return json(res,200,{...await calendar.runTest(input),calendar:await calendar.status()});
+          if(url.pathname==='/api/calendar/schedule'){
+            if(input.confirmed!==true)throw new Error('Review the account, time and reminders, then confirm scheduling.');
+            const call=state.calls.find(c=>c.id===input.callId);if(!call||call.outcome!=='meeting_booked')throw new Error('Choose a saved booked meeting.');
+            if(input.meetingAt!==call.meetingAt)throw new Error('The meeting time changed. Review the latest call before scheduling.');
+            const generation=workspaceGeneration,original=JSON.stringify(call),lead=dataset.leads.find(l=>l.id===call.leadId);
+            const stillValid=()=>{if(workspaceGeneration!==generation||JSON.stringify(state.calls.find(c=>c.id===call.id))!==original)throw new Error('The call changed during scheduling. Review it before retrying.');};
+            const result=await calendar.schedule({call:structuredClone(call),lead,datasetHash,account:input.account,durationMinutes:input.durationMinutes,reminders:input.reminders,allowConflict:input.allowConflict===true},stillValid);
+            const changed=workspaceGeneration!==generation||JSON.stringify(state.calls.find(c=>c.id===call.id))!==original;
+            return json(res,200,{...result,...(changed?{warning:'The call changed while Google was saving. The calendar event may reflect the earlier details; review both.'}:{}),calendar:await calendar.status()});
+          }
+          return json(res,404,{error:'Not found.'});
+        }
         if(req.method==='GET'&&url.pathname==='/api/wispr/status')return json(res,200,{...await wispr.status(),...await analysisInfo()});
         if(req.method==='POST'&&url.pathname.startsWith('/api/wispr/')){
           if(!req.headers['content-type']?.startsWith('application/json'))return json(res,415,{error:'Expected JSON.'});
@@ -128,7 +162,7 @@ export async function createDesk({ port = Number(process.env.PORT || 4318), data
           if(req.headers.origin && !validHosts.some(h=>req.headers.origin===`http://${h}`))return json(res,403,{error:'Changes must come from this local workspace.'});
           if(!req.headers['content-type']?.startsWith('application/json'))return json(res,415,{error:'Expected JSON.'});
           const input=await body(req);
-          if(input.command?.type==='update_call_session')return json(res,403,{error:'Recording evidence can only be updated through Wispr sync.'});
+          if(['update_call_session','propose_commitments','save_weekly_review'].includes(input.command?.type))return json(res,403,{error:'Recording evidence and AI drafts can only be updated through their analysis routes.'});
           const operation=chain.then(async()=>{
             if(input.revision!==state.revision){json(res,409,{error:'Another tab saved a change. Refresh the workspace before saving again; your text is still on screen.',revision:state.revision});return;}
             let next;

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import {applyWorkflow,validateWorkflow} from './workflow.mjs';
 
 export const STAGES = ['review', 'approved', 'followup', 'booked', 'deferred', 'disqualified', 'closed', 'excluded'];
 export const OUTCOMES = ['no_answer', 'connected', 'follow_up', 'meeting_booked', 'not_interested', 'wrong_number'];
@@ -103,6 +104,7 @@ export function applyCommand(current, dataset, command, now = new Date().toISOSt
   if (p.leadId && !lead) throw new Error('This lead is no longer in the bank.');
   const requireLead = () => { if (!lead) throw new Error('Choose a lead.'); return storedLead(state, lead); };
   const requireSession = () => {requireLead();const session=state.callSessions.find(s=>s.id===p.sessionId&&s.leadId===lead.id);if(!session)throw new Error('Call session not found for this lead.');return session;};
+  if(applyWorkflow(state,dataset,command,now,date)){state.revision=current.revision+1;state.updatedAt=now;validateWorkflow(state,dataset);return state;}
   switch (command.type) {
     case 'start_call': {
       const s=requireLead();if(!['approved','followup','booked'].includes(s.stage))throw new Error('Approve this lead for calls before starting a call.');
@@ -279,5 +281,5 @@ export function validateState(state,dataset) {
   }
   if(active>1)throw new Error('Backup contains multiple active calls.');
   for(const day of Object.values(state.days)){if(!Array.isArray(day.reviewQueue)||!Array.isArray(day.callQueue)||[...day.reviewQueue,...day.callQueue].some(id=>!ids.has(id)))throw new Error('Backup contains an invalid day queue.');}
-  return true;
+  validateWorkflow(state,dataset);return true;
 }

@@ -72,7 +72,7 @@ export function codexAnalysisArgs(schemaPath,cwd){
     '--enable','skip_host_skill_discovery',...DISABLED_FEATURES.flatMap(feature=>['--disable',feature]),'-'];
 }
 
-function sameDateEvidence(quote,date){
+export function sameDateEvidence(quote,date){
   if(!date)return true;
   if(quote.includes(date))return true;
   const [year,month,day]=date.split('-').map(Number);
@@ -164,18 +164,18 @@ async function invoke(prompt,schemaPath,cwd){
   });
 }
 let busy=false;
-export async function analyzeCall(input){
+export async function runStructuredAnalysis(prompt,schema){
   if(busy)throw new Error('Another call is being analyzed. Wait for it to finish before trying again.');
   if(!analysisStatus().analysisAvailable)throw new Error('The local Codex CLI is unavailable. Review the transcript manually.');
-  const prompt=analysisPrompt(input);
   busy=true;let directory;
   try{
     directory=await mkdtemp(path.join(tmpdir(),'bevamped-analysis-'));
     const schemaPath=path.join(directory,'analysis.schema.json');
-    await writeFile(schemaPath,JSON.stringify(ANALYSIS_SCHEMA),'utf8');
-    return validateAnalysis(await invoke(prompt,schemaPath,directory),input.transcript);
+    await writeFile(schemaPath,JSON.stringify(schema),'utf8');
+    return await invoke(prompt,schemaPath,directory);
   }finally{
     busy=false;
     if(directory&&path.dirname(path.resolve(directory))===path.resolve(tmpdir())&&path.basename(directory).startsWith('bevamped-analysis-'))await rm(directory,{recursive:true,force:true}).catch(()=>{});
   }
 }
+export async function analyzeCall(input){return validateAnalysis(await runStructuredAnalysis(analysisPrompt(input),ANALYSIS_SCHEMA),input.transcript);}

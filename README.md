@@ -50,6 +50,8 @@ The server binds to loopback for use on the local computer. This repository is n
 
 ## Tasks, meeting notes and weekly review
 
+Today presents bookings as a segmented goal dial and calls/reviews as individual progress marks. Weekly review includes a daily calls-and-bookings timeline, a call-outcome mosaic and an accessible daily breakdown. Future days are left unobserved; empty weeks do not show invented activity or a zero-percent conversion rate. Appointments count once per week on their first recorded day within that week. Visuals use saved activity and follow the light/dark appearance setting.
+
 In a lead’s **Calls & notes**, choose **Extract commitments** after its transcript is saved. BOLT proposes actions with exact supporting quotes. Review the owner, wording and date, then accept or dismiss each proposal. Acceptance creates a task; it never books a meeting or sends anything. Unknown dates stay blank. Manual tasks are available from **Tasks** or the lead history; prospect-owned actions start as Waiting.
 
 **Today** shows due or undated open tasks and meeting follow-ups. **Meetings** stores preparation, held/no-show/cancelled outcomes, notes, next actions and follow-up dates. These records do not add call attempts or bookings. Relationship stages, including proposal and won/lost, are recorded separately by you. Changing a local meeting outcome does not cancel its Google event.
